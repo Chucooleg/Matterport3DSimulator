@@ -28,7 +28,12 @@ class BaseAgent(object):
         self.losses = [] # For learning agents
 
     def write_results(self):
-        output = [{'instr_id':k, 'trajectory': v} for k,v in self.results.items()]
+        output = []
+        for k, v in self.results.items():
+            item = { 'instr_id' : k }
+            item.update(v)
+            output.append(item) 
+        # output = [{'instr_id':k, 'trajectory': v} for k,v in self.results.items()]
         with open(self.results_path, 'w') as f:
             json.dump(output, f)
 
@@ -48,11 +53,18 @@ class BaseAgent(object):
         #print('Testing %s' % self.__class__.__name__)
         looped = False
         while True:
-            for traj in self.rollout():
-                if traj['instr_id'] in self.results:
+            for t in self.rollout():
+                if t['instr_id'] in self.results:
                     looped = True
                 else:
-                    self.results[traj['instr_id']] = traj['path']
+                    self.results[t['instr_id']] = {
+                        'trajectory': t['path'],
+                        'agent_nav': t['agent_nav'],
+                        'agent_nav_logits': t['agent_nav_logits']
+                    }
+                    for k in ['teacher_nav']:
+                        if k in t:
+                            self.results[t['instr_id']][k] = t[k]
             if looped:
                 break
 
@@ -219,7 +231,11 @@ class Seq2SeqAgent(BaseAgent):
         # Record starting point
         traj = [{
             'instr_id': ob['instr_id'],
-            'path': [(ob['viewpoint'], ob['heading'], ob['elevation'])]
+            'agent_path': [(ob['viewpoint'], ob['heading'], ob['elevation']),
+            'agent_nav':[],   #TODO: added
+            'agent_nav_logits':[],    #TODO: added
+            'teacher_nav':[]    #TODO: added
+            ]
         } for ob in perm_obs]
 
         # Forward through encoder, giving initial hidden state and memory cell for decoder
@@ -245,6 +261,10 @@ class Seq2SeqAgent(BaseAgent):
             # Supervised training
             target = self._teacher_action(perm_obs, ended)
             self.loss += self.criterion(logit, target)
+
+            # TODO get logits here
+            logits_list = logit.data.tolist()
+            target_list = target.data.tolist()
 
             # Determine next model inputs
             if self.feedback == 'teacher':
@@ -272,7 +292,10 @@ class Seq2SeqAgent(BaseAgent):
             # Save trajectory output
             for i,ob in enumerate(perm_obs):
                 if not ended[i]:
-                    traj[i]['path'].append((ob['viewpoint'], ob['heading'], ob['elevation']))
+                    traj[i]['agent_path'].append((ob['viewpoint'], ob['heading'], ob['elevation']))
+                    traj[i]['agent_nav'].append(env_action[i])     #TODO: added
+                    traj[i]['agent_nav_logits'].append(logits_list[i])     #TODO: added
+                    traj[i]['teacher_nav'].append(target_list[i])    #TODO: added
 
             # Early exit if all ended
             if ended.all():
