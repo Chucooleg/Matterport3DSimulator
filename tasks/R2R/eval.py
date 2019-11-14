@@ -14,6 +14,8 @@ from utils import load_datasets, load_nav_graphs
 from agent import BaseAgent, StopAgent, RandomAgent, ShortestAgent
 
 
+SNAPSHOT_DIR = 'tasks/R2R/snapshots/'
+
 class Evaluation(object):
     ''' Results submission format:  [{'instr_id': string, 'trajectory':[(viewpoint_id, heading_rads, elevation_rads),] } ] '''
 
@@ -127,7 +129,7 @@ def eval_simple_agents():
 def eval_seq2seq():
     ''' Eval sequence to sequence models on val splits (iteration selected from training error) '''
     outfiles = [
-        RESULT_DIR + 'seq2seq_teacher_imagenet_%s_iter_5000.json',
+        #RESULT_DIR + 'seq2seq_teacher_imagenet_%s_iter_5000.json',
         RESULT_DIR + 'seq2seq_sample_imagenet_%s_iter_20000.json'
     ]
     for outfile in outfiles:
@@ -138,11 +140,45 @@ def eval_seq2seq():
             pp.pprint(score_summary)
 
 
+# def eval_seq2seq_calibration():
+#     '''Eval sequence to sequence models on val seen, val unseen, and test splits (iteration selected from training error)'''
+
+#     for split in ['val_seen', 'val_unseen', 'test']:
+#         env = R2RBatch(None, batch_size=1, splits=[split])
+#         ev = Evaluation([split])
+#         agent_type = "Seq2Seq"
+#         feedback_method = "sample"
+#         outfile = '%s%s_%s_%s_agent.json' % (RESULT_DIR, split, agent_type.lower(), feedback_method) 
+
+#         # Build models graph 
+#         enc_hidden_size = hidden_size//2 if bidirectional else hidden_size
+#         encoder = EncoderLSTM(len(vocab), word_embedding_size, enc_hidden_size, padding_idx,
+#                     dropout_ratio, bidirectional=bidirectional).cuda()
+#         decoder = AttnDecoderLSTM(Seq2SeqAgent.n_inputs(), Seq2SeqAgent.n_outputs(),
+#                     action_embedding_size, hidden_size, dropout_ratio).cuda()
+        
+            
+#         # initiate agent
+#         agent = BaseAgent.get_agent(agent_type)(env, outfile, ?, ?)
+
+#         # agent load model weights
+#         encoder_path = '%s%s_%s_enc_iter_%d' % (SNAPSHOT_DIR, 'seq2seq_%s_imagenet' % (feedback_method), str(split), 20000)
+#         decoder_path = '%s%s_%s_dec_iter_%d' % (SNAPSHOT_DIR, 'seq2seq_%s_imagenet' % (feedback_method), str(split), 20000)
+#         agent.load(encoder_path, decoder_path)
+
+#         agent.test(feedback=feedback_method) #TODO this can causes results to not match
+#         agent.write_results()
+#         score_summary, _ = ev.score(outfile)
+#         print('\n%s' % outfile)
+#         pp.pprint(score_summary)
+#         pass
+
+
 if __name__ == '__main__':
 
-    eval_simple_agents()
-    #eval_seq2seq()
-
+    #eval_simple_agents()
+    eval_seq2seq()
+    #eval_seq2seq_calibration()
 
 
 
