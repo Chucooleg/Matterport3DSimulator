@@ -1,4 +1,5 @@
-
+import sys
+sys.path.append("build")
 import MatterSim
 import time
 import math
