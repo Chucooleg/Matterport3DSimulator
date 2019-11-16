@@ -58,7 +58,7 @@ class BaseAgent(object):
                     looped = True
                 else:
                     self.results[t['instr_id']] = {
-                        'trajectory': t['path'],
+                        'trajectory': t['agent_path'],
                         'agent_nav': t['agent_nav'],
                         'agent_nav_logits': t['agent_nav_logits']
                     }
@@ -231,11 +231,10 @@ class Seq2SeqAgent(BaseAgent):
         # Record starting point
         traj = [{
             'instr_id': ob['instr_id'],
-            'agent_path': [(ob['viewpoint'], ob['heading'], ob['elevation']),
+            'agent_path': [(ob['viewpoint'], ob['heading'], ob['elevation'])],
             'agent_nav':[],   #TODO: added
             'agent_nav_logits':[],    #TODO: added
-            'teacher_nav':[]    #TODO: added
-            ]
+            'teacher_nav':[],    #TODO: added
         } for ob in perm_obs]
 
         # Forward through encoder, giving initial hidden state and memory cell for decoder
