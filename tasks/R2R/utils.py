@@ -143,3 +143,28 @@ def timeSince(since, percent):
     es = s / (percent)
     rs = es - s
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
+
+
+def load_region_label_to_name():
+    region_label_to_name = {}
+    with open('./data/region_label.txt') as f:
+        for line in f:
+            line = line.rstrip()
+            code = line[1]
+            try:
+                label = line[line.index('=') + 2:line.index('(') - 1]
+            except ValueError:
+                label = line[line.index('=') + 2:]
+            region_label_to_name[code] = label
+    return region_label_to_name
+
+
+def load_panos_to_region(house_id, region_label_to_name):
+    pano_file = '../../data/v1/scans/' + house_id + \
+        '/house_segmentations/' + 'panorama_to_region.txt'
+    panos_to_region = {}
+    with open(pano_file) as f:
+        for line in f:
+            values = line.rstrip().split()
+            panos_to_region[values[1]] = values[-1]
+    return panos_to_region
