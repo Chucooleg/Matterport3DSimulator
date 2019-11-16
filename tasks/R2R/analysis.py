@@ -401,9 +401,10 @@ class PlotUtils(object):
             confident = flattened[output_data_labels[i]]['agent_entropies_flattened'] <= bad_entropy_cutoff
             not_confident = flattened[output_data_labels[i]]['agent_entropies_flattened'] > bad_entropy_cutoff
 
-            flattened[output_data_labels[i]]['filter_correct'] = correct
-            flattened[output_data_labels[i]]['filter_wrong_and_confident'] = wrong & confident
+            flattened[output_data_labels[i]]['filter_correct_and_confident'] = correct & confident
+            flattened[output_data_labels[i]]['filter_correct_and_not_confident'] = correct & not_confident
             flattened[output_data_labels[i]]['filter_wrong_and_not_confident'] = wrong & not_confident
+            flattened[output_data_labels[i]]['filter_wrong_and_confident'] = wrong & confident
         
         # add flattened room label list for each output dataset (e.g. "r", "-", "h", "...")
         if room_specific:
@@ -415,9 +416,11 @@ class PlotUtils(object):
         # counts_<filter name>['test_unseen'][3] should give a tuple (qualified counts, unqualified counts) for time step 3
         # categories is a set. {1, 2, ... max time step} or {"-", "h". "r", ...}
         ##splits = {}
-        counts_wrong_confident = {}
+        counts_correct_confident = {}
+        counts_correct_not_confident = {}
         counts_wrong_not_confident = {}
-        counts_correct = {}
+        counts_wrong_confident = {}
+   
         categories = None
         for i in range(len(output_data_labels)):
             agent_entropies_flattened = flattened[output_data_labels[i]]['agent_entropies_flattened']
@@ -425,23 +428,29 @@ class PlotUtils(object):
                 categories_flattened = flattened[output_data_labels[i]]['timesteps_flattened']
             elif room_specific:
                 categories_flattened = flattened[output_data_labels[i]]['room_labels_flattened']
-            ##split_data, count_data = \
-            _, count_data_wrong_confident = \
+
+            _, count_data_correct_confident = \
                 cls._filter_and_split_ent_by_decision_quality(
                     flattened_data=[agent_entropies_flattened, categories_flattened], 
-                    filter=flattened[output_data_labels[i]]['filter_wrong_and_confident'])
+                    filter=flattened[output_data_labels[i]]['filter_correct_and_confident'])
+            _, count_data_correct_not_confident = \
+                cls._filter_and_split_ent_by_decision_quality(
+                    flattened_data=[agent_entropies_flattened, categories_flattened], 
+                    filter=flattened[output_data_labels[i]]['filter_correct_and_not_confident'])
             _, count_data_wrong_not_confident = \
                 cls._filter_and_split_ent_by_decision_quality(
                     flattened_data=[agent_entropies_flattened, categories_flattened], 
                     filter=flattened[output_data_labels[i]]['filter_wrong_and_not_confident'])
-            _, count_data_correct = \
+            _, count_data_wrong_confident = \
                 cls._filter_and_split_ent_by_decision_quality(
                     flattened_data=[agent_entropies_flattened, categories_flattened], 
-                    filter=flattened[output_data_labels[i]]['filter_correct'])
-            ##splits[output_data_labels[i]] = split_data
-            counts_wrong_confident[output_data_labels[i]] = count_data_wrong_confident
+                    filter=flattened[output_data_labels[i]]['filter_wrong_and_confident'])
+
+            counts_correct_confident[output_data_labels[i]] = count_data_correct_confident
+            counts_correct_not_confident[output_data_labels[i]] = count_data_correct_not_confident
             counts_wrong_not_confident[output_data_labels[i]] = count_data_wrong_not_confident
-            counts_correct[output_data_labels[i]] = count_data_correct
+            counts_wrong_confident[output_data_labels[i]] = count_data_wrong_confident
+
             # we want to narrow down to the common set of categories between the different output datasets
             if categories is None:
                 categories = set(count_data_wrong_confident.keys())
@@ -457,20 +466,25 @@ class PlotUtils(object):
             category_ids = sorted(list(categories))  # TODO deal too many room types
             category_name = "room tag"
 
-        # wrong, confidently in test seen, wrong, confidently in test unseen
+        # wrong, confidently in test seen; wrong, confidently in test unseen
         arr_a = [[counts_wrong_confident[output_data_labels[i]][cat][0] for cat in category_ids] \
             for i in range(len(output_data_labels))]
         arr_a = np.vstack((arr_a[0], arr_a[1]))
 
-        # wrong, not confidently in test seen, wrong, not confidently in test unseen
+        # wrong, not confidently in test seen; wrong, not confidently in test unseen
         arr_b = np.array([[counts_wrong_not_confident[output_data_labels[i]][cat][0] for cat in category_ids] \
             for i in range(len(output_data_labels))])
         arr_b = np.vstack((arr_b[0], arr_b[1]))
 
-        # correct in test seen, wrong, correct in test unseen
-        arr_c = np.array([[counts_correct[output_data_labels[i]][cat][0] for cat in category_ids] \
+        # correct, not confidently in test seen; wrong, correct, not confidently  in test unseen
+        arr_c = np.array([[counts_correct_not_confident[output_data_labels[i]][cat][0] for cat in category_ids] \
             for i in range(len(output_data_labels))])
         arr_c = np.vstack((arr_c[0], arr_c[1]))  
+
+        # correct, confidently in test seen; wrong, correct, confidently  in test unseen
+        arr_d = np.array([[counts_correct_confident[output_data_labels[i]][cat][0] for cat in category_ids] \
+            for i in range(len(output_data_labels))])
+        arr_d = np.vstack((arr_d[0], arr_d[1])) 
 
         assert len(arr_a) == len(output_data_labels)
         # plot normalized bar chart, plot raw count bar chart 
@@ -480,12 +494,14 @@ class PlotUtils(object):
                 arr_a=arr_a, 
                 arr_b=arr_b,
                 arr_c=arr_c,
+                arr_d=arr_d,
                 category_name=category_name,
-                quality_labels = ['incorrect, confidently', 'incorrect, not-confidently', 'correct'],
+                quality_labels = ['incorrect, confident', 'incorrect, not confident', 'correct, not confident', 'correct, confident'],
                 output_data_labels=output_data_labels,
                 action_type=action_type,
                 figsize=(20, 12), normalized=norm,
-                h_line=False, dataset_colors=None)
+                h_line=True, dataset_colors=None)
+
 
     @classmethod
     def _filter_and_split_ent_by_decision_quality(cls, flattened_data, filter):
@@ -709,7 +725,7 @@ class PlotUtils(object):
         return dotsize_collect
 
     @classmethod
-    def plot_grouped_bar_comparison(cls, category_ids, arr_a, arr_b, arr_c, category_name,
+    def plot_grouped_bar_comparison(cls, category_ids, arr_a, arr_b, arr_c, arr_d, category_name,
                                     quality_labels, output_data_labels, action_type,
                                     figsize=(20, 12), normalized=True,
                                     h_line=True, dataset_colors=None, ):
@@ -724,8 +740,9 @@ class PlotUtils(object):
         :param arr_b: numpy array (num output datasets, num categories).
                       e.g. (incorrect, not confidently in test seen; incorrect, not confidently in test unseen)
         :param arr_c: numpy array (num output datasets, num categories).
-                      e.g. (correct in test seen, correct in test unseen)
-
+                      e.g. (correct, not confidently in test seen, correct, not confidently in test unseen)
+        :param arr_d: numpy array (num output datasets, num categories). To add a dotted line mark only
+                      e.g. (correct, confidently in test seen, correct, confidently in test unseen)
         :param category_name: string to label x-axis. Such as "time" or "room tag"
         :param quality_labels: 3-string iterable. e.g. ('incorrect, confidently', 'incorrect, not-confidently', 'correct')
         :param output_data_labels: multi-string tuple. e.g. ('test_seen', 'test_unseen')
@@ -735,7 +752,7 @@ class PlotUtils(object):
         :param dataset_colors: array of strings. hexcode colors.
         :return:
         """
-        assert (arr_a.shape == arr_b.shape == arr_c.shape and
+        assert (arr_a.shape == arr_b.shape == arr_c.shape == arr_d.shape and
                 arr_a.shape[0] == len(output_data_labels) and
                 arr_a.shape[1] == len(category_ids))
         if dataset_colors is not None:
@@ -745,22 +762,24 @@ class PlotUtils(object):
         bar_width = min(0.2, 0.5 / arr_a.shape[0])
 
         # b & w
-        colors = ['#000000', '#a9a9a9', '#ffffff']
+        colors = ['#000000', '#888888', '#dddddd', '#ffffff']
         if dataset_colors is None:
             dataset_colors = REF_COLORS
         dataset_colors = np.array(dataset_colors)
 
         if normalized:
-            tot = arr_a + arr_b + arr_c
-            arr_a, arr_b = np.around(arr_a / tot, 4), np.around(arr_b / tot, 4)
-            arr_c = 1 - arr_a - arr_b
+            tot = arr_a + arr_b + arr_c + arr_d
+            arr_a = np.around(arr_a / tot, 4) 
+            arr_b = np.around(arr_b / tot, 4)
+            arr_c = np.around(arr_c / tot, 4)
+            arr_d = 1 - arr_a - arr_b - arr_c
 
         # figure boundary
         plt.subplots(figsize=figsize)
         if normalized:
             limit = 1.05
         else:
-            limit = np.max(arr_a + arr_b + arr_c) * 1.05
+            limit = np.max(arr_a + arr_b + arr_c + arr_d) * 1.05
         plt.ylim(0, limit)
 
         p_exp = []
@@ -786,15 +805,21 @@ class PlotUtils(object):
                          label=output_data_labels[i],
                          bottom=arr_a[i] + arr_b[i], color=colors[2])
 
+            p4 = plt.bar(rs[i], arr_d[i], width=bar_width,
+                         label=output_data_labels[i],
+                         bottom=arr_a[i] + arr_b[i] + arr_c[i], color=colors[3])
+
             hoffset = bar_width + bar_width / float(1.5)
 
             # h line
-            if i == 0 and h_line:
+            #if i == 0 and h_line:
+            if h_line:
                 hspan = hoffset * len(output_data_labels)
-                h = plt.hlines(y=arr_c[i], xmin=rs[i] - 0.2,
-                               xmax=rs[i] + hspan,
-                               colors='k', alpha=0.8,
-                               linestyles='dotted', label='baseline')
+                h = plt.hlines(y=arr_a[i] + arr_b[i], xmin=rs[i] - 0.2,
+                               # xmax=rs[i] + hspan,
+                               xmax=rs[i] + bar_width + 0.1,
+                               colors='r', alpha=1.0, linewidth=2.0,
+                               linestyles='--', label='baseline')
             # horizontal shift to next trial
             rs.append(rs[i] + hoffset)
 
@@ -818,7 +843,7 @@ class PlotUtils(object):
         # legends
         legend1 = plt.legend(p_exp, output_data_labels, fontsize=14,
                              loc='upper right')
-        plt.legend((p1[0], p2[0], p3[0]), quality_labels, fontsize=14,
+        plt.legend((p4[0], p3[0], p2[0], p1[0]), quality_labels[::-1], fontsize=14,
                    loc='upper left')
         plt.gca().add_artist(legend1)
         plt.show()
