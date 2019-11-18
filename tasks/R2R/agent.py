@@ -62,7 +62,7 @@ class BaseAgent(object):
                         'agent_nav': t['agent_nav'],
                         'agent_nav_logits': t['agent_nav_logits']
                     }
-                    for k in ['teacher_nav']:
+                    for k in ['teacher_nav', 'agent_nav_logit_masks']:
                         if k in t:
                             self.results[t['instr_id']][k] = t[k]
             if looped:
@@ -235,6 +235,7 @@ class Seq2SeqAgent(BaseAgent):
             'agent_nav':[],   #TODO: added
             'agent_nav_logits':[],    #TODO: added
             'teacher_nav':[],    #TODO: added
+            'agent_nav_logit_masks': [],  #TODO: added 
         } for ob in perm_obs]
 
         # Forward through encoder, giving initial hidden state and memory cell for decoder
@@ -249,13 +250,21 @@ class Seq2SeqAgent(BaseAgent):
         self.loss = 0
         env_action = [None] * batch_size
         for t in range(self.episode_len):
+            
+            # only for logging TODO
+            nav_logit_mask = torch.zeros(batch_size,
+                Seq2SeqAgent.n_outputs(), dtype=torch.uint8)
 
             f_t = self._feature_variable(perm_obs) # Image features from obs
             h_t,c_t,alpha,logit = self.decoder(a_t.view(-1, 1), f_t, h_t, c_t, ctx, seq_mask)
             # Mask outputs where agent can't move forward
+            nav_mask_indices = [] # only for logging
             for i,ob in enumerate(perm_obs):
                 if len(ob['navigableLocations']) <= 1:
                     logit[i, self.model_actions.index('forward')] = -float('inf')
+                    nav_mask_indices.append((i, self.model_actions.index('forward'))) # only for logging
+
+            nav_logit_mask[list(zip(*nav_mask_indices))] = 1 # only for logging
 
             # Supervised training
             target = self._teacher_action(perm_obs, ended)
@@ -264,6 +273,7 @@ class Seq2SeqAgent(BaseAgent):
             # TODO get logits here
             logits_list = logit.data.tolist()
             target_list = target.data.tolist()
+            logit_masks_list = nav_logit_mask.data.tolist()
 
             # Determine next model inputs
             if self.feedback == 'teacher':
@@ -295,7 +305,7 @@ class Seq2SeqAgent(BaseAgent):
                     traj[i]['agent_nav'].append(env_action[i])     #TODO: added
                     traj[i]['agent_nav_logits'].append(logits_list[i])     #TODO: added
                     traj[i]['teacher_nav'].append(target_list[i])    #TODO: added
-
+                    traj[i]['agent_nav_logit_masks'].append(logit_masks_list[i])  #TODO: added
             # Early exit if all ended
             if ended.all():
                 break
