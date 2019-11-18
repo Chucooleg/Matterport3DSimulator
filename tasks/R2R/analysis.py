@@ -208,7 +208,7 @@ class PlotUtils(object):
         assert viewpt_flattened.shape == scan_flattened.shape
         return viewpt_flattened, scan_flattened
 
-	@classmethod
+    @classmethod
     def flatten_masks(cls, data, action_type):
         """
         Arguments:
